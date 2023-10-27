@@ -1,17 +1,27 @@
 require 'active_record'
 
-DB = ActiveRecord::Base.establish_connection(
+APP_ENV="development"
+DB_HOST='localhost'
+DB_NAME='prueba'
+DB_USER='bracho'
+DB_PASS='admin'
+
+
+
+
+
+DB = ActiveRecord::Base.establish_connection(  
   :adapter => 'postgresql',
-  :database => ENV['DB_NAME'],
-  :host => ENV['DB_HOST'],
-  :username => ENV['DB_USER'],
-  :password => ENV['DB_PASS'],
+  :database => DB_NAME,
+  :host =>     DB_HOST,
+  :username => DB_USER,
+  :password => DB_PASS,
 )
 
 ActiveRecord::Base.connection.create_table(:articles, primary_key: 'id', force: true) do |t|
-    t.string :title
-    t.string :content
-    t.string :created_at
+    t.string  :title
+    t.string  :content
+    t.string  :created_at
 end
 
 require_relative 'article'

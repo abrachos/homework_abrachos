@@ -16,7 +16,7 @@ describe ArticleController do
     expect(result).to have_key(:data)
     expect(result[:ok]).to be true
     expect(result[:data]).to be_truthy
-    expect(result[:data][:title]).to eq('Title ABC')
+    expect(result[:data][:title]).to eq ('Title ABC')
   end
 
   it 'gets all articles from db' do

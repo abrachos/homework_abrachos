@@ -48,7 +48,7 @@ describe ArticleRoutes do
 
   context 'testing the get single article endpoint GET /2' do
     let(:response) { get '/2', nil, auth_header }
-
+    
     it 'checks response status and body' do
       expect(response.status).to eq 200
       hashed_response = JSON.parse(response.body)

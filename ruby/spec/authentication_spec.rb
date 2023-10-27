@@ -13,7 +13,6 @@ describe HealthRoutes do
   let(:app) { HealthRoutes.new }
 
   context 'testing health endpoint for authentication' do
-
     let(:response) { get '/', nil, prepare_headers(HeaderType::HTTP_AUTH) }
 
     it 'checks response status and body' do

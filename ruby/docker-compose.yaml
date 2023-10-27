@@ -1,0 +1,16 @@
+services:
+ 
+  db:
+    image: postgres
+    ports:
+      - "5432:5432"
+    restart: always
+    volumes:
+    - pgdata:/var/lib/postgresql/data
+    environment:
+    - POSTGRES_PASSWORD=admin
+    - POSTGRES_USER=bracho
+    - POSTGRES_DB=prueba
+ 
+volumes:
+  pgdata:
