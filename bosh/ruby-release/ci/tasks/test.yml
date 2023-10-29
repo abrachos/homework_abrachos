@@ -1,0 +1,18 @@
+---
+platform: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: bosh/docker-cpi
+
+inputs:
+- name: ruby-release
+- name: stemcell
+
+params:
+  RUBY_VERSION:
+  STEMCELL:
+
+run:
+  path: ruby-release/ci/tasks/test.sh

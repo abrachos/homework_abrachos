@@ -1,0 +1,227 @@
+#@ load("@ytt:data", "data")
+#@yaml/text-templated-strings
+jobs:
+#@ for ruby in data.values.rubies:
+- name: test-(@= ruby.version @)
+  serial: true
+  plan:
+  - in_parallel:
+    - get: ruby-release
+      trigger: true
+    - get: stemcell
+      resource: (@= ruby.stemcell @)
+      trigger: true
+  - task: test
+    privileged: true
+    timeout: 2h
+    params:
+      RUBY_VERSION: "(@= ruby.version @)"
+      STEMCELL: "(@= ruby.stemcell @)"
+    file: ruby-release/ci/tasks/test.yml
+
+- name: bump-(@= ruby.version @)
+  serial: true
+  serial_groups:
+    - bump
+  plan:
+  - in_parallel:
+    - get: ruby
+      resource: ruby-(@= ruby.version @)
+      trigger: true
+    - get: rubygems
+      resource: rubygems-(@= ruby.rubygems @)
+      trigger: true
+    - get: libyaml
+      resource: yaml-(@= ruby.libyaml @)
+      trigger: true
+    - get: ruby-release
+    - get: stemcell
+      resource: (@= ruby.stemcell @)
+    - get: bosh-src
+    - get: semver
+      params:
+        bump: minor
+  - task: bump
+    file: ruby-release/ci/tasks/bump.yml
+    params:
+      PRIVATE_YML: |
+        ---
+        blobstore:
+          options:
+            access_key_id: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.username))
+            secret_access_key: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.password))
+            assume_role_arn: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.role_arn))
+      RUBY_VERSION: "(@= ruby.version @)"
+      RUBYGEMS_VERSION: "(@= ruby.rubygems @)"
+      LIBYAML_VERSION: "(@= ruby.libyaml @)"
+  - task: test-bumped
+    privileged: true
+    file: ruby-release/ci/tasks/test.yml
+    params:
+      RUBY_VERSION: "(@= ruby.version @)"
+      STEMCELL: "(@= ruby.stemcell @)"
+  - task: finalize
+    file: ruby-release/ci/tasks/finalize.yml
+    params:
+      PRIVATE_YML: |
+        ---
+        blobstore:
+          options:
+            access_key_id: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.username))
+            secret_access_key: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.password))
+            assume_role_arn: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.role_arn))
+  - in_parallel:
+    - put: semver
+      params:
+        file: semver/version
+    - put: ruby-release
+      params:
+        rebase: true
+        repository: finalized-release
+        tag: semver/version
+        tag_prefix: v
+        annotate: version-tag/annotate-msg
+#@ end
+- name: build-docker-image
+  plan:
+  - get: ruby-release
+    trigger: true
+  - put: ruby-release-image
+    params:
+      build: "ruby-release"
+      dockerfile: "ruby-release/ci/docker/Dockerfile"
+    get_params:
+      skip_download: true
+
+#@yaml/text-templated-strings
+resources:
+- name: bosh-src
+  type: git
+  source:
+    uri: https://github.com/cloudfoundry/bosh.git
+
+- name: ruby-release
+  type: git
+  source:
+    uri: git@github.com:cloudfoundry/bosh-package-ruby-release.git
+    branch: main
+    private_key: ((github_deploy_key_ruby-release.private_key))
+
+- name: ubuntu-jammy
+  type: bosh-io-stemcell
+  source:
+    name: bosh-warden-boshlite-ubuntu-jammy-go_agent
+
+- name: ubuntu-bionic
+  type: bosh-io-stemcell
+  source:
+    name: bosh-warden-boshlite-ubuntu-bionic-go_agent
+
+- name: semver
+  type: semver
+  source:
+    bucket: bosh-packages-ruby-release
+    key: version
+    access_key_id: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.username))
+    secret_access_key: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.password))
+    assume_role_arn: ((bosh-packages-ruby-release-uploader_assume_aws_access_key.role_arn))
+
+#@ for rubygems in data.values.rubygems:
+- name: rubygems-(@= rubygems.version @)
+  type: dynamic-metalink
+  source:
+    version: "(@= rubygems.version @).x"
+    version_check: |
+     git ls-remote --tags https://github.com/rubygems/rubygems.git \
+       | cut -f2 \
+       | grep -v '\^{}' \
+       | grep -E '^refs/tags/.+$' \
+       | sed  -E 's/^refs\/tags\/(.+)$/\1/'  \
+       | sed  's/^v//' \
+       | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$'
+    metalink_get: |
+      export name="rubygems-${version}.tgz"
+      export url="https://rubygems.org/rubygems/rubygems-${version}.tgz"
+      export size=$( curl --silent --head "$url" | grep Content-Length | awk '{ print $2 }' | tr -cd '[:digit:]' )
+      jq -n '
+      {
+       "files": [
+        {
+         "name": env.name,
+         "urls": [ { "url": env.url } ],
+         "size": env.size | tonumber
+        }
+       ]
+      }'
+#@ end
+
+#@ for libyaml in data.values.libyamls:
+- name: yaml-(@= libyaml.version @)
+  type: dynamic-metalink
+  source:
+    version: "(@= libyaml.version @).x"
+    version_check: |
+     git ls-remote --tags https://github.com/yaml/libyaml.git \
+       | cut  -f2 \
+       | grep -v '\^{}' \
+       | grep -E '^refs/tags/.+$' \
+       | sed  -E 's/^refs\/tags\/(.+)$/\1/'  \
+       | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$'
+    metalink_get: |
+      export name="yaml-${version}.tar.gz"
+      export url="http://pyyaml.org/download/libyaml/yaml-${version}.tar.gz"
+      export size=$( curl --silent --head "$url" | grep Content-Length | awk '{ print $2 }' | tr -cd '[:digit:]' )
+      jq -n '
+      {
+       "files": [
+        {
+         "name": env.name,
+         "urls": [ { "url": env.url } ],
+         "size": env.size | tonumber
+        }
+       ]
+      }'
+#@ end
+
+#@ for ruby in data.values.rubies:
+- name: ruby-(@= ruby.version @)
+  type: dynamic-metalink
+  source:
+    version: "(@= ruby.version @).x"
+    version_check: |
+      curl --silent --location https://raw.githubusercontent.com/postmodern/ruby-versions/master/ruby/stable.txt
+    metalink_get: |
+      export name="ruby-${version}.tar.gz"
+      export url="http://cache.ruby-lang.org/pub/ruby/(@= ruby.version @)/${name}"
+      export sha256="$(curl --silent --location https://raw.githubusercontent.com/postmodern/ruby-versions/master/ruby/checksums.sha256 | grep ruby-${version}.tar.gz | awk {'print $1'})"
+      export size="$(curl --silent --head "$url" | grep -i Content-Length | awk '{ print $2 }' | tr -cd '[:digit:]')"
+      jq -n '
+      {
+       "files": [
+        {
+         "name": env.name,
+         "urls": [ { "url": env.url } ],
+         "hashes": [{ "type": "sha-256", "hash": env.sha256 }],
+         "size": env.size | tonumber
+        }
+       ]
+      }'
+#@ end
+
+- name: ruby-release-image
+  type: docker-image
+  source:
+    repository: bosh/ruby-release
+    username: ((docker.username))
+    password: ((docker.password))
+
+resource_types:
+- name: dynamic-metalink
+  type: docker-image
+  source:
+    repository: dpb587/dynamic-metalink-resource
+- name: semver
+  type: docker-image
+  source:
+    repository: concourse/semver-resource
+    tag: 1.6

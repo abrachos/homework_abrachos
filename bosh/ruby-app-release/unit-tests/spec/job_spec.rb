@@ -13,9 +13,11 @@ describe 'ruby app main job:' do
 
     it 'raises error if control script is not put in the right directory inside the VM instance (check the job spec file for typos or misnaming!)' do
       right_dir = true
+      puts job 
       begin 
         job.template('bin/ctl')
-      rescue
+      rescue => error
+        puts error
         right_dir = false
       end
 
