@@ -1,0 +1,6 @@
+applications:
+  - name: rubyweb
+    path: src/ruby-web-app/app.rb
+    resources:
+      memory: 1024
+      cpu: 1

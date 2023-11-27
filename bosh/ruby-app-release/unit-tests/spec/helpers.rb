@@ -18,12 +18,11 @@ def check_block_formations(rendered_template)
       tokens.push(CLOSE_TOKEN)
     end
   end
-
+  
   # remove header token and check if it starts a CASE..ESAC block
   # if not, then the rest of the tokens are not within a CASE..ESAC block, which is not allowed
   case_token = tokens.shift
   return false unless case_token == CASE_TOKEN
-  
   remaining_tokens_count = tokens.length
   next_token = CLOSE_TOKEN
   # pop in LIFO order and see whether tokens are matched

@@ -13,11 +13,9 @@ describe 'ruby app main job:' do
 
     it 'raises error if control script is not put in the right directory inside the VM instance (check the job spec file for typos or misnaming!)' do
       right_dir = true
-      puts job 
       begin 
         job.template('bin/ctl')
-      rescue => error
-        puts error
+      rescue
         right_dir = false
       end
 
@@ -25,13 +23,13 @@ describe 'ruby app main job:' do
     end
 
     let(:template) { job.template('bin/ctl') }
-
+    
     it 'raises error if empty bootstrap is provided' do
       expect {template.render({'bootstrap' => ''})}.to raise_error 'No bootstrap file provided'
     end
 
     it 'raises error if bootstrap file is not the correct one' do
-      expect {template.render({'bootstrap' => 'config.ru'})}.to raise_error 'Wrong bootstrap file provided'
+      expect { template.render({'bootstrap' => 'config.ru'}) }.to raise_error 'Wrong bootstrap file provided'
     end
 
     it 'raises error if control script is malformed' do 
@@ -45,7 +43,6 @@ describe 'ruby app main job:' do
       exec_line = tmps.each_line do |line|
         line if line.include? 'bundle exec'
       end
-      
       expect(exec_line).to include('bundle exec ruby app.rb')
     end
 
@@ -83,11 +80,11 @@ describe 'ruby app main job:' do
     end
 
     let(:conf_template) {job.template('cfg/config.yml')}
-
+    
     it 'raises error if configs are wrong' do
-      expect {conf_template.render('port' => 1024)}.to raise_error 'Invalid port number'
-      expect {conf_template.render('port' => 7999)}.to raise_error 'Invalid port number'
-      expect {conf_template.render('port' => 8080)}.not_to raise_error 
+      expect { conf_template.render('port' => 1024) }.to raise_error(RuntimeError, 'Invalid port number')
+      expect { conf_template.render('port' => 7999) }.to raise_error(RuntimeError, 'Invalid port number')
+      expect { conf_template.render('port' => 8080) }.not_to raise_error
     end
 
     it 'raises error if yml is not parsable or malformed' do 
